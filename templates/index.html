@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>weather activity app</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f2f2f2;
+        }
+        .container {
+            background: #fff; 
+            padding: 20px; 
+            border-radius: 8px; 
+            max-width: 900px; 
+            margin: auto; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            text-align: center; 
+            color: #333; 
+        }
+        .section { 
+            margin-bottom: 20px; 
+        }
+        .section h2 { 
+            border-bottom: 2px solid #ccc; 
+            padding-bottom: 5px; 
+            color: #555; 
+        }
+        #map { 
+            height: 300px; 
+            width: 100%; 
+            margin: 20px 0; 
+            border-radius: 5px; 
+        }
+        #status { 
+            text-align: center; 
+            color: #666; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>weather activity app</h1>
+        <p id="status">getting your location and weather info...</p>
+
+        <div id="results" style="display: none;">
+            <div class="section">
+                <h2>your location</h2>
+                <p id="location"></p>
+                <div id="map"></div>
+            </div>
+
+            <div class="section">
+                <h2>weather information</h2>
+                <div id="weather"></div>
+            </div>
+
+            <div class="section">
+                <h2>activity recommendations</h2>
+                <div id="recommendations"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(success, error, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                });
+            } else {
+                document.getElementById("status").innerText = "location not supported.";
+            }
+
+            function success(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+
+                const mapEl = document.getElementById("map");
+                const map = L.map(mapEl).setView([lat, lon], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+                L.marker([lat, lon]).addTo(map).bindPopup('You are here!').openPopup();
+
+                setTimeout(() => map.invalidateSize(), 100);
+
+                fetch('/get_info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lat: lat, lon: lon })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("status").style.display = "none";
+
+                    document.getElementById("results").style.display = "block";
+
+                    document.getElementById("location").innerText = data.location;
+
+                    const w = data.weather;
+                    let weatherHtml = `
+                        <p><strong>Temperature:</strong> ${w.temperature}°C</p>
+                        <p><strong>Windspeed:</strong> ${w.windspeed} km/h</p>
+                        <p><strong>Description:</strong> ${w.description}</p>
+                    `;
+                    document.getElementById("weather").innerHTML = weatherHtml;
+
+                    const recLines = data.recommendations.split('\n');
+                    const recHtml = recLines.map(line => `<p>${line}</p>`).join('');
+                    document.getElementById("recommendations").innerHTML = recHtml;
+                })
+                .catch(err => {
+                    document.getElementById("status").innerText = "error fetching data: " + err;
+                });
+            }
+
+            function error(err) {
+                document.getElementById("status").innerText = 
+                    "unable to retrieve your location: " + err.message;
+            }
+        });
+    </script>
+</body>
+</html>
